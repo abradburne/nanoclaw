@@ -69,6 +69,15 @@ export function initDatabase(): void {
   try {
     db.exec(`ALTER TABLE scheduled_tasks ADD COLUMN context_mode TEXT DEFAULT 'isolated'`);
   } catch { /* column already exists */ }
+
+  // Add message_type and transcription columns for voice messages
+  try {
+    db.exec(`ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT 'text'`);
+  } catch { /* column already exists */ }
+
+  try {
+    db.exec(`ALTER TABLE messages ADD COLUMN transcription TEXT`);
+  } catch { /* column already exists */ }
 }
 
 /**
@@ -144,23 +153,39 @@ export function setLastGroupSync(): void {
  * Store a message with full content.
  * Only call this for registered groups where message history is needed.
  */
-export function storeMessage(msg: proto.IWebMessageInfo, chatJid: string, isFromMe: boolean, pushName?: string): void {
+export function storeMessage(
+  msg: proto.IWebMessageInfo,
+  chatJid: string,
+  isFromMe: boolean,
+  pushName?: string,
+  transcription?: string
+): void {
   if (!msg.key) return;
 
-  const content =
+  let messageType = 'text';
+  let content =
     msg.message?.conversation ||
     msg.message?.extendedTextMessage?.text ||
     msg.message?.imageMessage?.caption ||
     msg.message?.videoMessage?.caption ||
     '';
 
+  // Handle voice/audio messages
+  if (msg.message?.audioMessage) {
+    messageType = 'voice';
+    content = transcription || '[Voice message]';
+  }
+
   const timestamp = new Date(Number(msg.messageTimestamp) * 1000).toISOString();
   const sender = msg.key.participant || msg.key.remoteJid || '';
   const senderName = pushName || sender.split('@')[0];
   const msgId = msg.key.id || '';
 
-  db.prepare(`INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run(msgId, chatJid, sender, senderName, content, timestamp, isFromMe ? 1 : 0);
+  db.prepare(`
+    INSERT OR REPLACE INTO messages
+    (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, message_type, transcription)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(msgId, chatJid, sender, senderName, content, timestamp, isFromMe ? 1 : 0, messageType, transcription || null);
 }
 
 export function getNewMessages(jids: string[], lastTimestamp: string, botPrefix: string): { messages: NewMessage[]; newTimestamp: string } {
