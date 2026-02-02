@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -24,6 +25,7 @@ import { initDatabase, storeMessage, storeChatMetadata, getNewMessages, getMessa
 import { startSchedulerLoop } from './task-scheduler.js';
 import { runContainerAgent, writeTasksSnapshot, writeGroupsSnapshot, AvailableGroup } from './container-runner.js';
 import { loadJson, saveJson } from './utils.js';
+import { hasAudio, transcribeVoiceMessage } from './voice-transcriber.js';
 
 const GROUP_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -527,7 +529,7 @@ async function connectWhatsApp(): Promise<void> {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('messages.upsert', ({ messages }) => {
+  sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (!msg.message) continue;
       const chatJid = msg.key.remoteJid;
@@ -540,7 +542,20 @@ async function connectWhatsApp(): Promise<void> {
 
       // Only store full message content for registered groups
       if (registeredGroups[chatJid]) {
-        storeMessage(msg, chatJid, msg.key.fromMe || false, msg.pushName || undefined);
+        // Check if it's a voice message and transcribe
+        let transcription: string | undefined;
+        if (hasAudio(msg)) {
+          logger.info({ chatJid }, 'Transcribing voice message...');
+          const result = await transcribeVoiceMessage(msg);
+          if (result) {
+            transcription = result;
+            logger.info({ chatJid, transcription }, 'Voice message transcribed');
+          } else {
+            logger.warn({ chatJid }, 'Voice transcription failed');
+          }
+        }
+
+        storeMessage(msg, chatJid, msg.key.fromMe || false, msg.pushName || undefined, transcription);
       }
     }
   });
