@@ -48,6 +48,7 @@ Then run `/setup`. Claude Code handles everything: dependencies, authentication,
 - **Scheduled tasks** - Recurring jobs that run Claude and can message you back
 - **Web access** - Search and fetch content
 - **Container isolation** - Agents sandboxed in Apple containers
+- **Voice message transcription** - Voice messages automatically transcribed via OpenAI Whisper
 - **Optional integrations** - Add Gmail (`/add-gmail`) and more via skills
 
 ## Usage
@@ -66,6 +67,19 @@ From the main channel (your self-chat), you can manage groups and tasks:
 @Andy pause the Monday briefing task
 @Andy join the Family Chat group
 ```
+
+### Voice Messages
+
+Voice messages are automatically transcribed using OpenAI Whisper API.
+
+**Setup:**
+1. Get an OpenAI API key from https://platform.openai.com/api-keys
+2. Add to `.env`: `OPENAI_API_KEY=sk-...`
+3. Restart the service: `launchctl kickstart -k gui/$(id -u)/com.nanoclaw`
+
+See [docs/VOICE_TRANSCRIPTION.md](docs/VOICE_TRANSCRIPTION.md) for details.
+
+**Cost:** ~$0.006 per minute of audio
 
 ## Customizing
 
@@ -112,6 +126,8 @@ Skills we'd love to see:
 - Node.js 20+
 - [Claude Code](https://claude.ai/download)
 - [Apple Container](https://github.com/apple/container)
+
+See [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) for environment variable configuration.
 
 ## Architecture
 
